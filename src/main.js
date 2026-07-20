@@ -115,23 +115,48 @@ function renderSubdomains(result) {
     return;
   }
 
-  list.innerHTML = subdomains.map(d => `
+  list.innerHTML = subdomains.map(d => {
+    const domain = d.full_domain || d.subdomain + '.' + d.rootdomain;
+    const isNeverExpires = d.never_expires === 1 || d.never_expires === true || !d.expires_at;
+    
+    // Determine renew button state
+    let renewBtn = '';
+    if (isNeverExpires) {
+      // Permanent domain - no renew button needed
+      renewBtn = `<span class="btn btn-sm" style="opacity:0.4;cursor:default;" title="永久域名">♾️ 永久</span>`;
+    } else {
+      // Check if within renewal window (30 days before expiry)
+      const expiresAt = d.expires_at ? new Date(d.expires_at) : null;
+      const now = new Date();
+      const daysUntilExpiry = expiresAt ? Math.ceil((expiresAt - now) / (1000 * 60 * 60 * 24)) : 999;
+      const canRenew = daysUntilExpiry <= 30;
+      
+      if (canRenew) {
+        renewBtn = `<button class="btn btn-sm btn-success btn-renew" data-id="${d.id}" title="续期">续期</button>`;
+      } else {
+        renewBtn = `<button class="btn btn-sm btn-success btn-renew" data-id="${d.id}" title="还有 ${daysUntilExpiry} 天到期，尚未进入续期窗口" disabled style="opacity:0.4;cursor:not-allowed;">续期</button>`;
+      }
+    }
+
+    return `
     <div class="list-item" data-id="${d.id}">
       <div class="list-item-info">
-        <span class="list-item-title">${d.full_domain || d.subdomain + '.' + d.rootdomain}</span>
+        <span class="list-item-title">${domain}</span>
         <div class="list-item-meta">
           <span class="status status-${d.status}">${d.status}</span>
           <span>创建: ${d.created_at || '--'}</span>
           ${d.expires_at ? `<span>到期: ${d.expires_at}</span>` : ''}
+          ${isNeverExpires ? '<span style="color:var(--primary);">永久</span>' : ''}
         </div>
       </div>
       <div class="list-item-actions">
-        <button class="btn btn-sm btn-success btn-renew" data-id="${d.id}" title="续期">续期</button>
-        <button class="btn btn-sm btn-ghost btn-dns" data-id="${d.id}" data-domain="${d.full_domain || d.subdomain + '.' + d.rootdomain}" title="DNS 记录">DNS</button>
-        <button class="btn btn-sm btn-danger btn-delete-sub" data-id="${d.id}" data-domain="${d.full_domain || d.subdomain + '.' + d.rootdomain}" title="删除">删除</button>
+        ${renewBtn}
+        <button class="btn btn-sm btn-ghost btn-dns" data-id="${d.id}" data-domain="${domain}" title="DNS 记录">DNS</button>
+        <button class="btn btn-sm btn-danger btn-delete-sub" data-id="${d.id}" data-domain="${domain}" title="删除">删除</button>
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 
   // Pagination
   const pagination = result.pagination;
