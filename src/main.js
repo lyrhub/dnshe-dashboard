@@ -431,6 +431,96 @@ async function loadQuota() {
   }
 }
 
+// === Auto Renew ===
+async function autoRenewAll() {
+  if (!hasCredentials()) return;
+
+  const panel = $('#auto-renew-panel');
+  const log = $('#auto-renew-log');
+  const status = $('#auto-renew-status');
+
+  panel.classList.remove('hidden');
+  log.innerHTML = '';
+  status.textContent = '正在获取所有域名...';
+
+  // Fetch all subdomains (paginated)
+  let allSubdomains = [];
+  let page = 1;
+  let hasMore = true;
+
+  try {
+    while (hasMore) {
+      const result = await listSubdomains({ page, perPage: 200 });
+      const subs = result.subdomains || [];
+      allSubdomains = allSubdomains.concat(subs);
+      hasMore = result.pagination?.has_more || false;
+      page++;
+    }
+  } catch (err) {
+    status.textContent = `获取域名失败: ${err.message}`;
+    return;
+  }
+
+  if (allSubdomains.length === 0) {
+    status.textContent = '没有找到任何子域名';
+    return;
+  }
+
+  status.textContent = `共 ${allSubdomains.length} 个域名，正在逐个尝试续期...`;
+
+  let renewed = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const sub of allSubdomains) {
+    const domain = sub.full_domain || `${sub.subdomain}.${sub.rootdomain}`;
+    const entry = document.createElement('div');
+    entry.className = 'renew-log-entry';
+    entry.textContent = `⏳ ${domain} - 尝试续期中...`;
+    log.appendChild(entry);
+    log.scrollTop = log.scrollHeight;
+
+    try {
+      const result = await renewSubdomain(sub.id);
+      entry.textContent = `✅ ${domain} - ${result.message || '续期成功'}`;
+      entry.classList.add('renew-success');
+      renewed++;
+    } catch (err) {
+      const msg = err.message || '未知错误';
+      // These are expected "not ready" errors, not real failures
+      if (msg.includes('not yet available') || msg.includes('还未到') || msg.includes('renewal_not_yet_available')) {
+        entry.textContent = `⏭️ ${domain} - 续期窗口未开放，跳过`;
+        entry.classList.add('renew-skip');
+        skipped++;
+      } else if (msg.includes('never_expires') || msg.includes('永久') || msg.includes('does not expire')) {
+        entry.textContent = `♾️ ${domain} - 永久域名，无需续期`;
+        entry.classList.add('renew-skip');
+        skipped++;
+      } else {
+        entry.textContent = `❌ ${domain} - ${msg}`;
+        entry.classList.add('renew-fail');
+        failed++;
+      }
+    }
+
+    // Rate limit: wait 2s between requests to stay under 30 req/min
+    await new Promise(r => setTimeout(r, 2000));
+  }
+
+  status.textContent = `完成！续期 ${renewed} 个，跳过 ${skipped} 个，失败 ${failed} 个`;
+
+  // Refresh list
+  if (renewed > 0) {
+    loadSubdomains();
+    loadQuota();
+  }
+}
+
+$('#btn-auto-renew').addEventListener('click', autoRenewAll);
+$('#btn-close-renew-panel').addEventListener('click', () => {
+  $('#auto-renew-panel').classList.add('hidden');
+});
+
 // === Init ===
 async function loadAll() {
   if (!hasCredentials()) {
@@ -440,6 +530,8 @@ async function loadAll() {
   loadQuota();
   loadSubdomains();
   loadApiKeys();
+  // Auto renew on load
+  autoRenewAll();
 }
 
 // Start
