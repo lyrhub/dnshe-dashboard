@@ -487,12 +487,12 @@ async function autoRenewAll() {
       renewed++;
     } catch (err) {
       const msg = err.message || '未知错误';
-      // These are expected "not ready" errors, not real failures
-      if (msg.includes('not yet available') || msg.includes('还未到') || msg.includes('renewal_not_yet_available')) {
+      // These are expected "not ready" errors - count as skipped, not failed
+      if (msg.includes('not yet available') || msg.includes('还未到') || msg.includes('renewal_not_yet_available') || msg.includes('尚未进入可续期')) {
         entry.textContent = `⏭️ ${domain} - 续期窗口未开放，跳过`;
         entry.classList.add('renew-skip');
         skipped++;
-      } else if (msg.includes('never_expires') || msg.includes('永久') || msg.includes('does not expire')) {
+      } else if (msg.includes('never_expires') || msg.includes('永久') || msg.includes('does not expire') || msg.includes('never expire') || msg.includes('set to never')) {
         entry.textContent = `♾️ ${domain} - 永久域名，无需续期`;
         entry.classList.add('renew-skip');
         skipped++;
