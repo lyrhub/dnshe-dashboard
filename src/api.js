@@ -1,10 +1,12 @@
 /**
  * DNSHE Free Domain API Client
- * API Endpoint: https://api005.dnshe.com/index.php?m=domain_hub
- * Auth: X-API-Key + X-API-Secret headers
+ * Uses /api/ proxy (Cloudflare Pages Functions) to bypass CORS
  */
 
-const BASE_URL = 'https://api005.dnshe.com/index.php';
+/**
+ * Uses local /api/ proxy (Cloudflare Pages Functions) to avoid CORS.
+ * Proxy forwards to https://api005.dnshe.com/index.php?m=domain_hub
+ */
 
 function getCredentials() {
   const apiKey = localStorage.getItem('dnshe_api_key') || '';
@@ -28,7 +30,8 @@ async function request(endpoint, action, method = 'GET', data = null, extraParam
     throw new Error('请先配置 API 密钥');
   }
 
-  let url = `${BASE_URL}?m=domain_hub&endpoint=${endpoint}&action=${action}${extraParams}`;
+  // Use local proxy to avoid CORS
+  let url = `/api/${endpoint}?action=${action}${extraParams}`;
 
   const options = {
     method,
