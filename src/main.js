@@ -13,7 +13,13 @@ import {
   getQuota,
   getCredentials,
   saveCredentials,
-  hasCredentials
+  hasCredentials,
+  getAccounts,
+  addAccount,
+  removeAccount,
+  switchAccount,
+  getActiveAccount,
+  getActiveAccountId
 } from './api.js';
 
 // === DOM Elements ===
@@ -51,9 +57,7 @@ $$('.tab').forEach(tab => {
 
 // === Settings Modal ===
 $('#btn-settings').addEventListener('click', () => {
-  const { apiKey, apiSecret } = getCredentials();
-  $('#input-api-key').value = apiKey;
-  $('#input-api-secret').value = apiSecret;
+  renderAccountsList();
   openModal('modal-settings');
 });
 
@@ -62,16 +66,73 @@ $('#modal-settings .modal-backdrop').addEventListener('click', () => closeModal(
 
 $('#form-settings').addEventListener('submit', (e) => {
   e.preventDefault();
+  const name = $('#input-account-name').value.trim() || '未命名账户';
   const apiKey = $('#input-api-key').value.trim();
   const apiSecret = $('#input-api-secret').value.trim();
   if (!apiKey || !apiSecret) {
     toast('请输入完整的 API 密钥', 'error');
     return;
   }
-  saveCredentials(apiKey, apiSecret);
-  closeModal('modal-settings');
-  toast('API 密钥已保存');
+  addAccount(name, apiKey, apiSecret);
+  $('#input-account-name').value = '';
+  $('#input-api-key').value = '';
+  $('#input-api-secret').value = '';
+  renderAccountsList();
+  toast('账户已添加');
   loadAll();
+});
+
+function renderAccountsList() {
+  const accounts = getAccounts();
+  const activeId = getActiveAccountId();
+  const container = $('#accounts-list');
+
+  if (accounts.length === 0) {
+    container.innerHTML = '<p class="placeholder" style="padding:16px;">暂无保存的账户</p>';
+    return;
+  }
+
+  container.innerHTML = accounts.map(acc => `
+    <div class="account-item ${acc.id === activeId ? 'active' : ''}" data-id="${acc.id}">
+      <div class="account-info">
+        <span class="account-name">${acc.name || acc.apiKey.slice(0, 12)}</span>
+        <span class="account-key">${acc.apiKey.slice(0, 8)}...${acc.apiKey.slice(-4)}</span>
+      </div>
+      <div class="account-actions">
+        ${acc.id === activeId ? '<span class="status status-active">当前</span>' : `<button class="btn btn-sm btn-primary btn-switch-account" data-id="${acc.id}">切换</button>`}
+        <button class="btn btn-sm btn-danger btn-remove-account" data-id="${acc.id}" data-name="${acc.name}">删除</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Account actions (event delegation)
+$('#accounts-list').addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+
+  const id = btn.dataset.id;
+
+  if (btn.classList.contains('btn-switch-account')) {
+    switchAccount(id);
+    renderAccountsList();
+    closeModal('modal-settings');
+    toast('已切换账户');
+    loadAll();
+  }
+
+  if (btn.classList.contains('btn-remove-account')) {
+    const name = btn.dataset.name || 'this account';
+    if (!confirm(`确认删除账户 "${name}"？`)) return;
+    removeAccount(id);
+    renderAccountsList();
+    if (!hasCredentials()) {
+      toast('所有账户已删除', 'error');
+    } else {
+      toast('账户已删除');
+      loadAll();
+    }
+  }
 });
 
 // === Close modals ===
@@ -592,6 +653,10 @@ async function loadAll() {
     openModal('modal-settings');
     return;
   }
+  // Show active account name
+  const active = getActiveAccount();
+  $('#active-account-name').textContent = active ? active.name : '--';
+  
   loadQuota();
   loadSubdomains();
   loadApiKeys();

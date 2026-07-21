@@ -14,17 +14,27 @@
         <h1>DNSHE 域名管理</h1>
       </div>
       <div class="header-right">
+        <span id="active-account-name" class="account-badge">--</span>
         <span id="quota-info" class="quota-badge">--</span>
-        <button id="btn-settings" class="btn btn-ghost" title="API 设置">⚙️</button>
+        <button id="btn-settings" class="btn btn-ghost" title="账户管理">⚙️</button>
       </div>
     </header>
 
     <!-- Settings Modal -->
     <div id="modal-settings" class="modal hidden">
       <div class="modal-backdrop"></div>
-      <div class="modal-content">
-        <h2>API 设置</h2>
+      <div class="modal-content modal-wide">
+        <h2>账户管理</h2>
+        
+        <!-- Saved accounts list -->
+        <div id="accounts-list" class="accounts-list"></div>
+        
+        <!-- Add new account form -->
+        <h3 style="margin-top:20px;font-size:0.95rem;color:var(--text-muted);">添加新账户</h3>
         <form id="form-settings">
+          <label>账户名称
+            <input type="text" id="input-account-name" placeholder="例如：主账户" autocomplete="off" />
+          </label>
           <label>API Key
             <input type="text" id="input-api-key" placeholder="cfsd_xxxxxxxxxx" autocomplete="off" />
           </label>
@@ -32,8 +42,8 @@
             <input type="password" id="input-api-secret" placeholder="yyyyyyyyyyyy" autocomplete="off" />
           </label>
           <div class="modal-actions">
-            <button type="button" id="btn-settings-cancel" class="btn btn-ghost">取消</button>
-            <button type="submit" class="btn btn-primary">保存</button>
+            <button type="button" id="btn-settings-cancel" class="btn btn-ghost">关闭</button>
+            <button type="submit" class="btn btn-primary">添加账户</button>
           </div>
         </form>
       </div>

@@ -1,28 +1,94 @@
 /**
  * DNSHE Free Domain API Client
  * Uses /api/ proxy (Cloudflare Pages Functions) to bypass CORS
+ * Supports multiple accounts with switch functionality
  */
 
-/**
- * Uses local /api/ proxy (Cloudflare Pages Functions) to avoid CORS.
- * Proxy forwards to https://api005.dnshe.com/index.php?m=domain_hub
- */
+// === Multi-Account Credentials Management ===
+
+function getAccounts() {
+  try {
+    return JSON.parse(localStorage.getItem('dnshe_accounts') || '[]');
+  } catch {
+    return [];
+  }
+}
+
+function saveAccounts(accounts) {
+  localStorage.setItem('dnshe_accounts', JSON.stringify(accounts));
+}
+
+function getActiveAccountId() {
+  return localStorage.getItem('dnshe_active_account') || '';
+}
+
+function setActiveAccountId(id) {
+  localStorage.setItem('dnshe_active_account', id);
+}
 
 function getCredentials() {
+  const accounts = getAccounts();
+  const activeId = getActiveAccountId();
+  const account = accounts.find(a => a.id === activeId);
+  if (account) {
+    return { apiKey: account.apiKey, apiSecret: account.apiSecret };
+  }
+  // Fallback: migrate old single-key storage
   const apiKey = localStorage.getItem('dnshe_api_key') || '';
   const apiSecret = localStorage.getItem('dnshe_api_secret') || '';
   return { apiKey, apiSecret };
 }
 
-function saveCredentials(apiKey, apiSecret) {
+function saveCredentials(apiKey, apiSecret, name = '') {
+  // Legacy compatibility - also save as single key
   localStorage.setItem('dnshe_api_key', apiKey);
   localStorage.setItem('dnshe_api_secret', apiSecret);
 }
 
 function hasCredentials() {
   const { apiKey, apiSecret } = getCredentials();
-  return apiKey && apiSecret;
+  return !!(apiKey && apiSecret);
 }
+
+function addAccount(name, apiKey, apiSecret) {
+  const accounts = getAccounts();
+  const id = 'acc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+  accounts.push({ id, name, apiKey, apiSecret });
+  saveAccounts(accounts);
+  setActiveAccountId(id);
+  return id;
+}
+
+function removeAccount(id) {
+  let accounts = getAccounts();
+  accounts = accounts.filter(a => a.id !== id);
+  saveAccounts(accounts);
+  if (getActiveAccountId() === id) {
+    setActiveAccountId(accounts.length > 0 ? accounts[0].id : '');
+  }
+}
+
+function switchAccount(id) {
+  setActiveAccountId(id);
+}
+
+function getActiveAccount() {
+  const accounts = getAccounts();
+  const activeId = getActiveAccountId();
+  return accounts.find(a => a.id === activeId) || null;
+}
+
+// Migrate old single-key storage to multi-account
+function migrateOldCredentials() {
+  const accounts = getAccounts();
+  if (accounts.length > 0) return; // Already migrated
+  const apiKey = localStorage.getItem('dnshe_api_key') || '';
+  const apiSecret = localStorage.getItem('dnshe_api_secret') || '';
+  if (apiKey && apiSecret) {
+    addAccount('默认账户', apiKey, apiSecret);
+  }
+}
+migrateOldCredentials();
 
 async function request(endpoint, action, method = 'GET', data = null, extraParams = '') {
   const { apiKey, apiSecret } = getCredentials();
@@ -136,4 +202,4 @@ export async function getQuota() {
 
 // === Credentials ===
 
-export { getCredentials, saveCredentials, hasCredentials };
+export { getCredentials, saveCredentials, hasCredentials, getAccounts, addAccount, removeAccount, switchAccount, getActiveAccount, getActiveAccountId };

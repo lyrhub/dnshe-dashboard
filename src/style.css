@@ -496,3 +496,66 @@ body {
     border-radius: 12px 12px 0 0;
   }
 }
+
+
+/* Multi-Account */
+.modal-wide {
+  max-width: 520px;
+}
+
+.accounts-list {
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+}
+
+.account-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+}
+
+.account-item:last-child {
+  border-bottom: none;
+}
+
+.account-item.active {
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.account-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.account-name {
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.account-key {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-family: monospace;
+}
+
+.account-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.account-badge {
+  background: var(--primary);
+  color: white;
+  padding: 4px 10px;
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
