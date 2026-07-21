@@ -125,14 +125,14 @@ function renderSubdomains(result) {
       // Permanent domain - no renew button needed
       renewBtn = `<span class="btn btn-sm" style="opacity:0.4;cursor:default;" title="永久域名">♾️ 永久</span>`;
     } else {
-      // Check if within renewal window (30 days before expiry)
+      // Check if within renewal window (180 days before expiry)
       const expiresAt = d.expires_at ? new Date(d.expires_at) : null;
       const now = new Date();
       const daysUntilExpiry = expiresAt ? Math.ceil((expiresAt - now) / (1000 * 60 * 60 * 24)) : 999;
-      const canRenew = daysUntilExpiry <= 30;
+      const canRenew = daysUntilExpiry <= 180;
       
       if (canRenew) {
-        renewBtn = `<button class="btn btn-sm btn-success btn-renew" data-id="${d.id}" title="续期">续期</button>`;
+        renewBtn = `<button class="btn btn-sm btn-success btn-renew" data-id="${d.id}" title="续期（剩余 ${daysUntilExpiry} 天）">续期</button>`;
       } else {
         renewBtn = `<button class="btn btn-sm btn-success btn-renew" data-id="${d.id}" title="还有 ${daysUntilExpiry} 天到期，尚未进入续期窗口" disabled style="opacity:0.4;cursor:not-allowed;">续期</button>`;
       }
@@ -491,7 +491,7 @@ async function autoRenewAll() {
     return;
   }
 
-  status.textContent = `共 ${allSubdomains.length} 个域名，正在逐个尝试续期...`;
+  status.textContent = `共 ${allSubdomains.length} 个域名，正在检查续期状态...`;
 
   let renewed = 0;
   let skipped = 0;
@@ -499,20 +499,56 @@ async function autoRenewAll() {
 
   for (const sub of allSubdomains) {
     const domain = sub.full_domain || `${sub.subdomain}.${sub.rootdomain}`;
+    const isNeverExpires = sub.never_expires === 1 || sub.never_expires === true || !sub.expires_at;
     const entry = document.createElement('div');
     entry.className = 'renew-log-entry';
-    entry.textContent = `⏳ ${domain} - 尝试续期中...`;
     log.appendChild(entry);
     log.scrollTop = log.scrollHeight;
 
+    // Skip permanent domains
+    if (isNeverExpires) {
+      entry.textContent = `♾️ ${domain} - 永久域名，无需续期`;
+      entry.classList.add('renew-skip');
+      skipped++;
+      continue;
+    }
+
+    // Check days until expiry
+    const expiresAt = sub.expires_at ? new Date(sub.expires_at) : null;
+    const now = new Date();
+    const daysUntilExpiry = expiresAt ? Math.ceil((expiresAt - now) / (1000 * 60 * 60 * 24)) : 999;
+
+    // Skip if >180 days until expiry (not renewable)
+    if (daysUntilExpiry > 180) {
+      entry.textContent = `⏭️ ${domain} - 到期还有 ${daysUntilExpiry} 天，无需续期`;
+      entry.classList.add('renew-skip');
+      skipped++;
+      continue;
+    }
+
+    // Try to renew
+    entry.textContent = `⏳ ${domain} - 尝试续期中（剩余 ${daysUntilExpiry} 天）...`;
+
     try {
       const result = await renewSubdomain(sub.id);
-      entry.textContent = `✅ ${domain} - ${result.message || '续期成功'}`;
+      const chargedAmount = result.charged_amount || 0;
+
+      // If it cost money, need confirmation
+      if (chargedAmount > 0) {
+        const confirmed = confirm(`⚠️ 付费续期确认\n\n域名: ${domain}\n费用: ${chargedAmount} 积分\n\n确认续期？`);
+        if (!confirmed) {
+          entry.textContent = `⚠️ ${domain} - 付费续期已取消（需 ${chargedAmount} 积分）`;
+          entry.classList.add('renew-skip');
+          skipped++;
+          continue;
+        }
+      }
+
+      entry.textContent = `✅ ${domain} - ${result.message || '续期成功'}${chargedAmount > 0 ? ` (扣费 ${chargedAmount})` : ' (免费)'}`;
       entry.classList.add('renew-success');
       renewed++;
     } catch (err) {
       const msg = err.message || '未知错误';
-      // These are expected "not ready" errors - count as skipped, not failed
       if (msg.includes('not yet available') || msg.includes('还未到') || msg.includes('renewal_not_yet_available') || msg.includes('尚未进入可续期')) {
         entry.textContent = `⏭️ ${domain} - 续期窗口未开放，跳过`;
         entry.classList.add('renew-skip');
@@ -521,6 +557,10 @@ async function autoRenewAll() {
         entry.textContent = `♾️ ${domain} - 永久域名，无需续期`;
         entry.classList.add('renew-skip');
         skipped++;
+      } else if (msg.includes('insufficient') || msg.includes('余额不足')) {
+        entry.textContent = `⚠️ ${domain} - 余额不足，跳过`;
+        entry.classList.add('renew-fail');
+        failed++;
       } else {
         entry.textContent = `❌ ${domain} - ${msg}`;
         entry.classList.add('renew-fail');
